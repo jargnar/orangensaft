@@ -1,0 +1,13 @@
+f square(x):
+    ret x * x
+
+nums = [2, 3, 4]
+
+// compiler enriches the prompt to ensure type received is structured properly
+answer: [int] = $
+    compute square for each in {nums}
+$
+
+assert answer[0] == square(nums[0])
+assert answer[1] == square(nums[1])
+assert answer[2] == square(nums[2])

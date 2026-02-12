@@ -1,0 +1,17 @@
+items = [(1, "build"), (2, "test"), (3, "ship")]
+
+// assume stdlib upper(string) -> string
+f make_row(id, verb):
+    ret {id: id, action: upper(verb) + "_done"}
+
+// true function calling: interpolating {make_row} auto-exposes it as a tool
+rows: [{id: int, action: string}] = $
+    For each tuple in {items}, call {make_row}(id, verb).
+$
+
+assert rows[0].id == 1
+assert rows[0].action == "BUILD_done"
+assert rows[1].id == 2
+assert rows[1].action == "TEST_done"
+assert rows[2].id == 3
+assert rows[2].action == "SHIP_done"

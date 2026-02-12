@@ -1,0 +1,27 @@
+verbs = ["build", "test", "ship"]
+suffix = "_random_suffix"
+
+f to_upper(verb: string) -> string:
+    ret upper(verb)
+
+f add_suffix(s: string) -> string:
+    ret s + suffix
+
+f not_exposed(verb: string) -> string:
+    ret "this function is intentionally not a tool: " + verb
+
+// alias with normal assignment; {do_upper} exposes alias name as the callable tool name
+do_upper = to_upper
+
+// capability boundary: only interpolated functions are exposed
+result: [string] = $
+    For each verb in {verbs}:
+    1) call {do_upper}(verb)
+    2) call {add_suffix}(output)
+
+    Return JSON array of strings only.
+$
+
+assert result[0] == "BUILD_random_suffix"
+assert result[1] == "TEST_random_suffix"
+assert result[2] == "SHIP_random_suffix"

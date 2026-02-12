@@ -1,0 +1,7 @@
+people = ["alice", "bob", "charlie", "mr. karabalabaloofal"]
+
+z: string = $
+    who has the longest name in {people}
+$
+
+assert z == people[3]

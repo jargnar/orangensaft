@@ -1,0 +1,10 @@
+stuff = [1, 2, 3]
+other_stuff = [(1, "do"), (2, "sing"), (3, "dance")]
+
+result: {id: int, action: string} = $
+    for the 3rd elem in {stuff},
+    find its action in {other_stuff}
+$
+
+assert result.id == 3
+assert result.action == "dance"

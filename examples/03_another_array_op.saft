@@ -1,0 +1,9 @@
+verbs = ["build", "test", "ship"]
+
+upper: [string] = $
+    convert each item in {verbs} to uppercase
+$
+
+assert upper[0] == "BUILD"
+assert upper[1] == "TEST"
+assert upper[2] == "SHIP"

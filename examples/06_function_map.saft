@@ -1,0 +1,14 @@
+verbs = ["build", "test", "ship"]
+
+// assume stdlib upper(string) -> string
+f my_func(verb):
+    ret upper(verb) + "_random_suffix"
+
+// true function calling: interpolating {my_func} auto-exposes it as a tool
+result: [string] = $
+    Call {my_func} once for each verb in {verbs}.
+$
+
+assert result[0] == "BUILD_random_suffix"
+assert result[1] == "TEST_random_suffix"
+assert result[2] == "SHIP_random_suffix"

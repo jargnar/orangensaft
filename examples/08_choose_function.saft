@@ -1,0 +1,21 @@
+nums = [1, 2, 3, 4]
+
+f square(x):
+    ret x * x
+
+f cube(x):
+    ret x * x * x
+
+// true function calling: interpolated functions become callable tools
+out: [int] = $
+    For each n in {nums}:
+    - if n is even, call {square}(n)
+    - if n is odd, call {cube}(n)
+
+    Return JSON array of integers only.
+$
+
+assert out[0] == 1
+assert out[1] == 4
+assert out[2] == 27
+assert out[3] == 16

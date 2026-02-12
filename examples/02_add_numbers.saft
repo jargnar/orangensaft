@@ -1,0 +1,8 @@
+x = 2
+y = 2
+
+z: int = $
+    hey what's {x} + {y}
+$
+
+assert z == x + y

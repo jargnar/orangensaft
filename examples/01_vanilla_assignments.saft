@@ -1,0 +1,9 @@
+count: int = 3
+mode: string = "fast"
+flags: [bool] = [true, false, true]
+pair: (int, string) = (1, "one")
+config: {retries: int, mode: string} = {retries: count, mode: mode}
+
+assert count == 3
+assert config.retries == 3
+assert config.mode == "fast"

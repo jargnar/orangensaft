@@ -1,0 +1,12 @@
+people = ["alice", "bob", "charlie"]
+
+f greet(x, y):
+    ret x + " says hi to " + y
+
+z: string = $
+    hey it seems among {people}, bob
+    wants to talk to alice
+    can you {greet} them
+$
+
+assert z == "bob says hi to alice"
