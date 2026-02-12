@@ -15,7 +15,27 @@ z: string = $
     who has the longest name in {people}
 $
 
+// guess what happened above?
+// when you enclosed something in $ .. $ and assign it to a var
+// the language run time actually evaluates it by calling an LLM
+// and stores response in the assigned variable
+
+// so the below will actually mostly be true
+// (unless you're calling like a stupid model)
+
 assert z == people[3]
+```
+
+To run a `saft` program, for now clone the repo and run it like this
+
+```sh
+% cargo run -- run examples/11_simple_array_op_2.saft \
+  --provider openrouter \
+  --api-key-env OPENROUTER_API_KEY \
+  --model openai/gpt-4o-mini \
+  --temperature 0 \
+  --max-tool-rounds 8 \
+  --max-tool-calls 32
 ```
 
 A few more quick examples below.
