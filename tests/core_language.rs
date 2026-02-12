@@ -23,3 +23,27 @@ fn runtime_enforces_assignment_schema() {
     let err = run_source(source).expect_err("expected schema validation failure");
     assert!(err.message.contains("schema validation failed"));
 }
+
+#[test]
+fn multiline_object_schema_assignment_parses() {
+    let source = r#"
+report: {
+    score: float,
+    meta: {
+        title: string,
+        tags: [string]
+    }
+} = {
+    score: 1.5,
+    meta: {title: "ok", tags: ["a", "b"]}
+}
+
+assert report.meta.title == "ok"
+"#;
+
+    let result = run_source(source);
+    assert!(
+        result.is_ok(),
+        "expected multiline object schema assignment to run, got {result:?}"
+    );
+}

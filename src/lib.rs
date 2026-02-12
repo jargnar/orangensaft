@@ -1,6 +1,7 @@
 pub mod ast;
 pub mod cli;
 pub mod error;
+pub mod formatter;
 pub mod lexer;
 pub mod parser;
 pub mod provider;
@@ -19,6 +20,10 @@ pub fn check_source(source: &str) -> SaftResult<Program> {
     let program = parser::parse(tokens)?;
     resolver::resolve(&program, stdlib::BUILTIN_NAMES)?;
     Ok(program)
+}
+
+pub fn format_source(source: &str) -> SaftResult<String> {
+    formatter::format_source(source)
 }
 
 pub fn run_source(source: &str) -> SaftResult<()> {

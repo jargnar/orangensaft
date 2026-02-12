@@ -47,6 +47,22 @@ You can also use shorthand (no `run` subcommand):
 % cargo run -- examples/11_simple_array_op_2.saft --provider openrouter
 ```
 
+You can auto-format in-memory before running/checking:
+
+```sh
+% cargo run -- run examples/14_polars_agentic_scouting_report.saft --autofmt
+% cargo run -- check examples/14_polars_agentic_scouting_report.saft --autofmt
+```
+
+And format files directly:
+
+```sh
+% cargo run -- fmt examples/14_polars_agentic_scouting_report.saft --check
+% cargo run -- fmt examples/14_polars_agentic_scouting_report.saft --write
+```
+
+Note: formatter output is AST-based and can rewrite layout aggressively.
+
 If you want plain `orangensaft ...` commands:
 
 ```sh
@@ -110,10 +126,44 @@ Current builtin functions:
 
 - `upper(string) -> string`
 - `print(any) -> nil`
-- `len(string|list|tuple|object) -> int`
+- `len(string|list|tuple|object|dataframe) -> int`
 - `type(any) -> string`
+- `read(path: string) -> dataframe` (CSV)
+- `shape(df: dataframe) -> (int, int)` (`rows, columns`)
+- `columns(df: dataframe) -> [string]`
+- `head(df: dataframe) -> [object]` (first 5 rows)
+- `select(df: dataframe, cols: [string]) -> dataframe`
+- `mean(df: dataframe, column: string) -> float`
+- `sum(df: dataframe, column: string) -> float`
+- `min(df: dataframe, column: string) -> float`
+- `max(df: dataframe, column: string) -> float`
 
 For a compact stdlib demo, see `examples/12_stdlib_basics.saft`.
+
+For dataframe + prompt context behavior, see `examples/13_polars_prompt_context.saft`.
+For a deeper agentic dataframe analysis flow, see `examples/14_polars_agentic_scouting_report.saft`.
+
+## DataFrames + Prompt Context
+
+You can now load CSVs with Polars-backed dataframes:
+
+```saft
+df = read("examples/data/team_stats.csv")
+
+winner = $
+    which column from {df} has highest average
+$
+```
+
+When a dataframe is interpolated in a prompt (`{df}`), runtime injects a structured JSON context block instead of raw full-table dumps. That block includes:
+
+- `shape` (`rows`, `columns`)
+- column names + dtypes
+- `sample_rows` (bounded sample)
+- `numeric_profile` (`mean`, `min`, `max` per numeric column, bounded)
+- truncation metadata so models know context was summarized
+
+This keeps prompts token-efficient while still giving the model enough tabular signal for questions like "highest average column". For exact numeric answers, deterministic stdlib functions (`mean`, `sum`, etc.) are still available.
 
 ## AI Agent Entrypoint
 

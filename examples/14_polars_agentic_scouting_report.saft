@@ -1,0 +1,36 @@
+df = read("examples/data/player_box_scores.csv")
+assert type(df) == "dataframe"
+assert shape(df).1 == 7
+f avg(metric):
+    ret mean(df, metric)
+f spread(metric):
+    ret max(df, metric) - min(df, metric)
+f statline(metric):
+    ret {metric: metric, mean: mean(df, metric), min: min(df, metric), max: max(df, metric), spread: spread(metric)}
+f scout_table():
+    compact = select(df, ["player", "team", "points", "assists", "turnovers"])
+    ret head(compact)
+report: {mvp_signal_metric: string, stability_warning_metric: string, stats: {points_mean: float, assists_mean: float, turnovers_mean: float}, action_items: [string], narrative: string} = $
+    You are an elite basketball operations analyst.
+
+    Here is bounded dataframe context:
+    {df}
+
+    Use tools for exact computations (do not guess):
+    - {avg}
+    - {spread}
+    - {statline}
+    - {scout_table}
+
+    Allowed candidate metrics for mvp signal:
+    ["points", "assists", "three_pt_pct"]
+
+    Determine:
+    1) mvp_signal_metric: pick the strongest candidate metric
+    2) stability_warning_metric: metric with highest spread among
+       ["points", "assists", "turnovers", "three_pt_pct"]
+    3) stats: exact means for points, assists, turnovers
+    4) action_items: 3 concrete next scouting actions
+    5) narrative: a concise explanation grounded in evidence
+$
+print(report)

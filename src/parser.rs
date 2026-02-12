@@ -733,21 +733,26 @@ impl Parser {
 
     fn parse_object_lit(&mut self) -> SaftResult<Expr> {
         let start = self.expect_simple(TokenKind::LBrace, "expected '{'")?.span;
+        self.consume_soft_breaks();
         let mut fields = Vec::new();
 
         if !self.check_simple(&TokenKind::RBrace) {
             loop {
+                self.consume_soft_breaks();
                 let (name, _) = self.expect_ident("expected object field name")?;
                 self.expect_simple(TokenKind::Colon, "expected ':' after object field name")?;
                 let value = self.parse_expr()?;
                 fields.push((name, value));
+                self.consume_soft_breaks();
 
                 if !self.match_simple(TokenKind::Comma) {
                     break;
                 }
+                self.consume_soft_breaks();
             }
         }
 
+        self.consume_soft_breaks();
         let end = self.expect_simple(TokenKind::RBrace, "expected '}' after object")?;
         Ok(Expr::Object(fields, Span::merge(start, end.span)))
     }
@@ -818,6 +823,7 @@ impl Parser {
         }
 
         if self.match_simple(TokenKind::LBrace) {
+            self.consume_soft_breaks();
             let mut fields = Vec::new();
             if self.check_simple(&TokenKind::RBrace) {
                 return Err(SaftError::with_span(
@@ -827,15 +833,19 @@ impl Parser {
             }
 
             loop {
+                self.consume_soft_breaks();
                 let (name, _) = self.expect_ident("expected field name in object schema")?;
                 self.expect_simple(TokenKind::Colon, "expected ':' after field name")?;
                 let schema = self.parse_schema_expr()?;
                 fields.push(SchemaField { name, schema });
+                self.consume_soft_breaks();
                 if !self.match_simple(TokenKind::Comma) {
                     break;
                 }
+                self.consume_soft_breaks();
             }
 
+            self.consume_soft_breaks();
             self.expect_simple(TokenKind::RBrace, "expected '}' after object schema")?;
             return Ok(SchemaExpr::Object(fields));
         }
@@ -853,6 +863,15 @@ impl Parser {
 
     fn consume_newlines(&mut self) {
         while self.match_simple(TokenKind::Newline) {}
+    }
+
+    fn consume_soft_breaks(&mut self) {
+        while matches!(
+            self.current().kind,
+            TokenKind::Newline | TokenKind::Indent | TokenKind::Dedent
+        ) {
+            self.advance();
+        }
     }
 
     fn expect_simple(&mut self, expected: TokenKind, message: &str) -> SaftResult<Token> {

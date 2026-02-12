@@ -2,7 +2,8 @@ use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap};
 use std::rc::Rc;
 
-use serde_json::Value as JsonValue;
+use polars::prelude::{AnyValue, ChunkAgg, DataType};
+use serde_json::{Map as JsonMap, Value as JsonValue, json};
 
 use crate::ast::{
     BinaryOp, Expr, FnDef, FnParam, Pattern, Program, PromptExpr, PromptPart, SchemaExpr, Stmt,
@@ -15,7 +16,7 @@ use crate::provider::{
 };
 use crate::schema;
 use crate::stdlib;
-use crate::value::{FunctionId, Value};
+use crate::value::{DataFrameValue, FunctionId, Value};
 
 type EnvRef = Rc<RefCell<Env>>;
 type BuiltinFn = fn(Vec<Value>) -> SaftResult<Value>;
@@ -899,12 +900,133 @@ impl Runtime {
                 }
                 Ok(JsonValue::Object(out))
             }
+            Value::DataFrame(df) => self.dataframe_to_context_json(df, span),
             Value::Function(_) => Err(SaftError::with_span(
                 "function interpolation requires tool-calling (Milestone 3)",
                 span,
             )),
             Value::Nil => Ok(JsonValue::Null),
         }
+    }
+
+    fn dataframe_to_context_json(
+        &self,
+        dataframe: &DataFrameValue,
+        _span: Span,
+    ) -> SaftResult<JsonValue> {
+        const SAMPLE_ROW_LIMIT: usize = 8;
+        const NUMERIC_PROFILE_LIMIT: usize = 12;
+
+        let frame = dataframe.frame();
+        let row_count = frame.height();
+        let column_count = frame.width();
+
+        let columns = frame
+            .get_columns()
+            .iter()
+            .map(|column| {
+                json!({
+                    "name": column.name().to_string(),
+                    "dtype": column.dtype().to_string(),
+                })
+            })
+            .collect::<Vec<_>>();
+
+        let sample_rows = self.dataframe_sample_rows_json(dataframe, SAMPLE_ROW_LIMIT)?;
+        let (numeric_profile, numeric_column_count) =
+            self.dataframe_numeric_profile_json(dataframe, NUMERIC_PROFILE_LIMIT);
+
+        Ok(json!({
+            "__kind": "dataframe_context",
+            "shape": {
+                "rows": row_count,
+                "columns": column_count,
+            },
+            "columns": columns,
+            "sample_rows": sample_rows,
+            "numeric_profile": numeric_profile,
+            "truncation": {
+                "sample_rows_truncated": row_count.saturating_sub(SAMPLE_ROW_LIMIT),
+                "numeric_columns_truncated": numeric_column_count.saturating_sub(NUMERIC_PROFILE_LIMIT),
+            },
+            "llm_guidance": "Use numeric_profile for aggregate questions. Use sample_rows for qualitative patterns. If truncation counters are non-zero, the context is intentionally summarized."
+        }))
+    }
+
+    fn dataframe_sample_rows_json(
+        &self,
+        dataframe: &DataFrameValue,
+        max_rows: usize,
+    ) -> SaftResult<Vec<JsonValue>> {
+        let frame = dataframe.frame();
+        let rows = std::cmp::min(frame.height(), max_rows);
+        let mut out = Vec::with_capacity(rows);
+
+        for row_idx in 0..rows {
+            let mut row = JsonMap::new();
+            for column in frame.get_columns() {
+                let value = column.get(row_idx).map_err(|err| {
+                    SaftError::new(format!("failed to read dataframe cell: {err}"))
+                })?;
+                row.insert(column.name().to_string(), anyvalue_to_json_value(value));
+            }
+            out.push(JsonValue::Object(row));
+        }
+
+        Ok(out)
+    }
+
+    fn dataframe_numeric_profile_json(
+        &self,
+        dataframe: &DataFrameValue,
+        max_columns: usize,
+    ) -> (Vec<JsonValue>, usize) {
+        let mut profile = Vec::new();
+        let mut numeric_count = 0usize;
+
+        for column in dataframe.frame().get_columns() {
+            let casted = match column.cast(&DataType::Float64) {
+                Ok(series) => series,
+                Err(_) => continue,
+            };
+            let as_float = match casted.f64() {
+                Ok(values) => values,
+                Err(_) => continue,
+            };
+
+            let non_null_count = as_float.len().saturating_sub(as_float.null_count());
+            if non_null_count == 0 {
+                continue;
+            }
+
+            numeric_count += 1;
+            if profile.len() >= max_columns {
+                continue;
+            }
+
+            let mut column_profile = JsonMap::new();
+            column_profile.insert(
+                "column".to_string(),
+                JsonValue::String(column.name().to_string()),
+            );
+            column_profile.insert(
+                "non_null_count".to_string(),
+                JsonValue::Number((non_null_count as u64).into()),
+            );
+            if let Some(value) = as_float.mean().and_then(serde_json::Number::from_f64) {
+                column_profile.insert("mean".to_string(), JsonValue::Number(value));
+            }
+            if let Some(value) = as_float.min().and_then(serde_json::Number::from_f64) {
+                column_profile.insert("min".to_string(), JsonValue::Number(value));
+            }
+            if let Some(value) = as_float.max().and_then(serde_json::Number::from_f64) {
+                column_profile.insert("max".to_string(), JsonValue::Number(value));
+            }
+
+            profile.push(JsonValue::Object(column_profile));
+        }
+
+        (profile, numeric_count)
     }
 
     fn json_to_value(&self, json: JsonValue, span: Span) -> SaftResult<Value> {
@@ -987,7 +1109,7 @@ impl Runtime {
                 (Value::Float(a), Value::Float(b)) => Ok(Value::Float(a + b)),
                 (Value::Int(a), Value::Float(b)) => Ok(Value::Float(a as f64 + b)),
                 (Value::Float(a), Value::Int(b)) => Ok(Value::Float(a + b as f64)),
-                (Value::String(a), Value::String(b)) => Ok(Value::String(a + &b)),
+                (Value::String(a), Value::String(b)) => Ok(Value::String(a + b.as_str())),
                 (a, b) => Err(SaftError::with_span(
                     format!(
                         "operator '+' expects numeric operands or strings, got {} and {}",
@@ -1275,5 +1397,29 @@ fn schema_example_json(schema: &SchemaExpr) -> Option<JsonValue> {
         }
         SchemaExpr::Union(variants) => variants.first().and_then(schema_example_json),
         SchemaExpr::Optional(inner) => schema_example_json(inner).or(Some(JsonValue::Null)),
+    }
+}
+
+fn anyvalue_to_json_value(value: AnyValue<'_>) -> JsonValue {
+    match value {
+        AnyValue::Null => JsonValue::Null,
+        AnyValue::Boolean(v) => JsonValue::Bool(v),
+        AnyValue::Int8(v) => JsonValue::Number((v as i64).into()),
+        AnyValue::Int16(v) => JsonValue::Number((v as i64).into()),
+        AnyValue::Int32(v) => JsonValue::Number((v as i64).into()),
+        AnyValue::Int64(v) => JsonValue::Number(v.into()),
+        AnyValue::UInt8(v) => JsonValue::Number((v as u64).into()),
+        AnyValue::UInt16(v) => JsonValue::Number((v as u64).into()),
+        AnyValue::UInt32(v) => JsonValue::Number((v as u64).into()),
+        AnyValue::UInt64(v) => JsonValue::Number(v.into()),
+        AnyValue::Float32(v) => serde_json::Number::from_f64(v as f64)
+            .map(JsonValue::Number)
+            .unwrap_or_else(|| JsonValue::String(v.to_string())),
+        AnyValue::Float64(v) => serde_json::Number::from_f64(v)
+            .map(JsonValue::Number)
+            .unwrap_or_else(|| JsonValue::String(v.to_string())),
+        AnyValue::String(v) => JsonValue::String(v.to_string()),
+        AnyValue::StringOwned(v) => JsonValue::String(v.to_string()),
+        other => JsonValue::String(other.to_string()),
     }
 }

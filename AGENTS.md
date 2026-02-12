@@ -6,7 +6,7 @@ This is the single LLM/agent entrypoint for Orangensaft.
 
 - Language/runtime: Rust (`edition = 2024`)
 - Crate: `orangensaft`
-- Dependency footprint: `serde_json`
+- Dependency footprint: `serde_json`, `polars`
 - Binary entrypoint: `src/main.rs` -> `orangensaft::cli::run`
 
 Top-level directories:
@@ -37,8 +37,18 @@ Design boundary:
   - `cargo run -- run examples/06_function_map.saft --provider mock`
 - Run shorthand (no `run` subcommand):
   - `cargo run -- examples/06_function_map.saft --provider mock`
+- Run with in-memory autoformatting:
+  - `cargo run -- run examples/14_polars_agentic_scouting_report.saft --autofmt`
+- Check with in-memory autoformatting:
+  - `cargo run -- check examples/14_polars_agentic_scouting_report.saft --autofmt`
+- Format a file (stdout/check/write):
+  - `cargo run -- fmt examples/14_polars_agentic_scouting_report.saft`
+  - `cargo run -- fmt examples/14_polars_agentic_scouting_report.saft --check`
+  - `cargo run -- fmt examples/14_polars_agentic_scouting_report.saft --write`
 - Run with OpenRouter:
   - `cargo run -- run examples/11_simple_array_op_2.saft --provider openrouter --api-key-env OPENROUTER_API_KEY --model openai/gpt-4o-mini --temperature 0 --max-tool-rounds 8 --max-tool-calls 32`
+- Run dataframe prompt-context example with OpenRouter:
+  - `cargo run -- run examples/13_polars_prompt_context.saft --provider openrouter --api-key-env OPENROUTER_API_KEY --model openai/gpt-4o-mini --temperature 0 --max-tool-rounds 8 --max-tool-calls 32`
 - Install binary and run directly:
   - `cargo install --path .`
   - `orangensaft examples/11_simple_array_op_2.saft`
@@ -86,9 +96,18 @@ Builtin functions currently installed by runtime:
 - `print(any) -> nil`
   - prints to stdout with newline
   - string arguments print as raw text (without surrounding quotes)
-- `len(string|list|tuple|object) -> int`
+- `len(string|list|tuple|object|dataframe) -> int`
 - `type(any) -> string`
-  - returns runtime kind names (`int`, `float`, `bool`, `string`, `list`, `tuple`, `object`, `function`, `nil`)
+  - returns runtime kind names (`int`, `float`, `bool`, `string`, `list`, `tuple`, `object`, `dataframe`, `function`, `nil`)
+- `read(path: string) -> dataframe` (CSV)
+- `shape(df: dataframe) -> (int, int)` (`rows, columns`)
+- `columns(df: dataframe) -> [string]`
+- `head(df: dataframe) -> [object]` (first 5 rows)
+- `select(df: dataframe, cols: [string]) -> dataframe`
+- `mean(df: dataframe, column: string) -> float`
+- `sum(df: dataframe, column: string) -> float`
+- `min(df: dataframe, column: string) -> float`
+- `max(df: dataframe, column: string) -> float`
 
 Where builtins are wired:
 - declarations: `src/stdlib.rs`
@@ -115,9 +134,10 @@ Public orchestration API:
 - `src/lexer.rs`: lexing, indentation handling, prompt block lexing
 - `src/parser.rs`: recursive-descent parsing, prompt interpolation parsing, schema parsing
 - `src/resolver.rs`: undefined-name and duplicate checks
-- `src/value.rs`: runtime value model and truthiness
+- `src/value.rs`: runtime value model (including Polars-backed dataframe values) and truthiness
 - `src/schema.rs`: schema validation + JSON Schema conversion
 - `src/provider.rs`: `PromptProvider` protocol + mock/openrouter providers
+- `src/formatter.rs`: AST-based source formatter
 - `src/stdlib.rs`: builtin function definitions
 - `src/runtime.rs`: interpreter, prompt rendering/tool loop, typed prompt repair
 - `src/cli.rs`: CLI parsing/execution
@@ -134,6 +154,7 @@ Assignments:
 
 Prompt interpolation:
 - non-function interpolation serializes value as JSON text into prompt
+- dataframe interpolation injects bounded dataframe context JSON (`shape`, `columns`, `sample_rows`, `numeric_profile`, truncation metadata)
 - function interpolation:
   - exposes function as callable tool
   - inserts tool name into rendered prompt
@@ -188,10 +209,15 @@ Readable integration test suites:
 - `tests/stdlib.rs`
   - stdlib builtins (`upper`, `print`, `len`, `type`)
   - CLI-level stdout assertion for `print`
+- `tests/dataframe.rs`
+  - Polars-backed dataframe builtins (`read`, `shape`, `columns`, `head`, `select`, numeric aggregates)
+  - dataframe prompt interpolation context block behavior
 
 Examples:
 - `examples/01`..`11` for baseline/prompt/tool-call behavior
 - `examples/12_stdlib_basics.saft` for stdlib usage
+- `examples/13_polars_prompt_context.saft` (+ `examples/data/team_stats.csv`) for dataframe + prompt context behavior
+- `examples/14_polars_agentic_scouting_report.saft` (+ `examples/data/player_box_scores.csv`) for non-trivial dataframe + tool-calling analysis
 
 ## 11. Invariants to Preserve
 
@@ -208,6 +234,8 @@ Examples:
 - Forward-reference patterns can pass resolver but still fail at runtime order-of-execution.
 - Mock provider is heuristic, not a general model substitute.
 - OpenRouter integration shells out to `curl`.
+- Dataframe prompt interpolation is intentionally summarized; full raw tables are not injected into prompts.
+- Formatter output is AST-based and may rewrite layout aggressively.
 
 ## 13. Change Playbooks
 

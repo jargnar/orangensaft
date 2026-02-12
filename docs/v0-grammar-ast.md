@@ -263,6 +263,7 @@ pub struct SchemaField {
 
 - Evaluate interpolation expressions to runtime `Value`
 - For non-function values, serialize interpolation to canonical JSON text
+- For dataframe values, serialize interpolation to a bounded dataframe context JSON block (`shape`, `columns`, sampled rows, numeric profile, truncation metadata)
 - For function values, auto-register a model tool and insert its callable name into prompt text
   - Bare identifier interpolation (`{my_func}`) uses `my_func` as tool name
   - Other function-valued expressions use generated names (`tool_1`, `tool_2`, ...)
@@ -301,6 +302,7 @@ pub enum Value {
     List(Vec<Value>),
     Tuple(Vec<Value>),
     Object(std::collections::BTreeMap<String, Value>),
+    DataFrame(PolarsDataFrameHandle),
     Function(FunctionValue),
     Nil,
 }
@@ -317,8 +319,17 @@ Current builtins:
 
 - `upper(string) -> string`
 - `print(any) -> nil` (prints to stdout)
-- `len(string|list|tuple|object) -> int`
+- `len(string|list|tuple|object|dataframe) -> int`
 - `type(any) -> string`
+- `read(path: string) -> dataframe` (CSV)
+- `shape(df: dataframe) -> (int, int)`
+- `columns(df: dataframe) -> [string]`
+- `head(df: dataframe) -> [object]`
+- `select(df: dataframe, cols: [string]) -> dataframe`
+- `mean(df: dataframe, column: string) -> float`
+- `sum(df: dataframe, column: string) -> float`
+- `min(df: dataframe, column: string) -> float`
+- `max(df: dataframe, column: string) -> float`
 
 Builtins are normal function values at runtime, so they can be called directly and can be interpolated in prompts as tools.
 
@@ -327,8 +338,12 @@ Builtins are normal function values at runtime, so they can be called directly a
 Keep secrets out of compile artifacts:
 
 - `orangensaft check file.saft`
+- `orangensaft check file.saft --autofmt`
 - `orangensaft run file.saft --api-key-env OPENAI_API_KEY --model gpt-4.1-mini --temperature 0`
 - `orangensaft run file.saft --max-tool-rounds 8 --max-tool-calls 32`
+- `orangensaft run file.saft --autofmt`
+- `orangensaft fmt file.saft --check`
+- `orangensaft fmt file.saft --write`
 
 If you still want compile-time key injection, treat it as a temporary dev flag only.
 

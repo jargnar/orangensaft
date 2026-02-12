@@ -1,0 +1,16 @@
+df = read("examples/data/team_stats.csv")
+
+assert type(df) == "dataframe"
+assert shape(df).0 == 4
+assert shape(df).1 == 3
+
+print(columns(df))
+print(head(df))
+print(mean(df, "points"))
+
+best_column = $
+    which column from {df} has highest average?
+    return only the column name.
+$
+
+print(best_column)

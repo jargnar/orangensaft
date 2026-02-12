@@ -1,7 +1,41 @@
 use std::collections::BTreeMap;
 use std::fmt;
+use std::sync::Arc;
+
+use polars::prelude::DataFrame;
 
 pub type FunctionId = usize;
+
+#[derive(Debug, Clone)]
+pub struct DataFrameValue {
+    frame: Arc<DataFrame>,
+}
+
+impl DataFrameValue {
+    pub fn new(frame: DataFrame) -> Self {
+        Self {
+            frame: Arc::new(frame),
+        }
+    }
+
+    pub fn frame(&self) -> &DataFrame {
+        self.frame.as_ref()
+    }
+
+    pub fn rows(&self) -> usize {
+        self.frame.height()
+    }
+
+    pub fn cols(&self) -> usize {
+        self.frame.width()
+    }
+}
+
+impl PartialEq for DataFrameValue {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.frame, &other.frame)
+    }
+}
 
 #[derive(Debug, Clone)]
 pub enum Value {
@@ -12,6 +46,7 @@ pub enum Value {
     List(Vec<Value>),
     Tuple(Vec<Value>),
     Object(BTreeMap<String, Value>),
+    DataFrame(DataFrameValue),
     Function(FunctionId),
     Nil,
 }
@@ -26,6 +61,7 @@ impl Value {
             Value::List(_) => "list",
             Value::Tuple(_) => "tuple",
             Value::Object(_) => "object",
+            Value::DataFrame(_) => "dataframe",
             Value::Function(_) => "function",
             Value::Nil => "nil",
         }
@@ -46,6 +82,7 @@ impl PartialEq for Value {
             (Value::List(a), Value::List(b)) => a == b,
             (Value::Tuple(a), Value::Tuple(b)) => a == b,
             (Value::Object(a), Value::Object(b)) => a == b,
+            (Value::DataFrame(a), Value::DataFrame(b)) => a == b,
             (Value::Function(a), Value::Function(b)) => a == b,
             (Value::Nil, Value::Nil) => true,
             _ => false,
@@ -90,6 +127,7 @@ impl fmt::Display for Value {
                 }
                 write!(f, "}}")
             }
+            Value::DataFrame(df) => write!(f, "<dataframe rows={} cols={}>", df.rows(), df.cols()),
             Value::Function(id) => write!(f, "<function:{id}>"),
             Value::Nil => write!(f, "nil"),
         }

@@ -25,6 +25,7 @@ pub fn run(args: Vec<String>) -> i32 {
 enum Command {
     Check {
         file: String,
+        autofmt: bool,
     },
     Run {
         file: String,
@@ -34,6 +35,12 @@ enum Command {
         temperature: Option<f32>,
         max_tool_rounds: usize,
         max_tool_calls: usize,
+        autofmt: bool,
+    },
+    Fmt {
+        file: String,
+        write: bool,
+        check: bool,
     },
 }
 
@@ -52,20 +59,63 @@ fn parse_args(args: &[String]) -> Result<Command, String> {
     }
 
     match args[1].as_str() {
-        "check" => {
-            if args.len() != 3 {
-                return Err(format!(
-                    "'check' expects exactly one file path\n{}",
-                    usage(&args[0])
-                ));
-            }
-            Ok(Command::Check {
-                file: args[2].clone(),
-            })
-        }
+        "check" => parse_check_command(args),
+        "fmt" => parse_fmt_command(args),
         "run" => parse_run_command(args, 2, 3),
         _ => parse_run_command(args, 1, 2),
     }
+}
+
+fn parse_check_command(args: &[String]) -> Result<Command, String> {
+    let bin_name = args.first().map(String::as_str).unwrap_or("orangensaft");
+    if args.len() < 3 {
+        return Err(format!("missing file path\n{}", usage(bin_name)));
+    }
+    let file = args[2].clone();
+    let mut autofmt = false;
+    let mut i = 3;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--autofmt" => {
+                autofmt = true;
+                i += 1;
+            }
+            other => return Err(format!("unknown option '{other}'\n{}", usage(bin_name))),
+        }
+    }
+
+    Ok(Command::Check { file, autofmt })
+}
+
+fn parse_fmt_command(args: &[String]) -> Result<Command, String> {
+    let bin_name = args.first().map(String::as_str).unwrap_or("orangensaft");
+    if args.len() < 3 {
+        return Err(format!("missing file path\n{}", usage(bin_name)));
+    }
+
+    let file = args[2].clone();
+    let mut write = false;
+    let mut check = false;
+    let mut i = 3;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--write" => {
+                write = true;
+                i += 1;
+            }
+            "--check" => {
+                check = true;
+                i += 1;
+            }
+            other => return Err(format!("unknown option '{other}'\n{}", usage(bin_name))),
+        }
+    }
+
+    if write && check {
+        return Err("fmt options --write and --check are mutually exclusive".to_string());
+    }
+
+    Ok(Command::Fmt { file, write, check })
 }
 
 #[derive(Debug, Clone)]
@@ -96,6 +146,7 @@ fn parse_run_command(
     let mut temperature = defaults.temperature;
     let mut max_tool_rounds = defaults.max_tool_rounds;
     let mut max_tool_calls = defaults.max_tool_calls;
+    let mut autofmt = false;
     let mut i = option_start;
 
     while i < args.len() {
@@ -142,6 +193,10 @@ fn parse_run_command(
                 provider = parse_provider_kind(&args[i + 1])?;
                 i += 2;
             }
+            "--autofmt" => {
+                autofmt = true;
+                i += 1;
+            }
             other => {
                 return Err(format!("unknown option '{other}'\n{}", usage(bin_name)));
             }
@@ -156,6 +211,7 @@ fn parse_run_command(
         temperature,
         max_tool_rounds,
         max_tool_calls,
+        autofmt,
     })
 }
 
@@ -178,8 +234,8 @@ fn run_defaults() -> Result<RunDefaults, String> {
         Err(_) => ProviderKind::Mock,
     };
 
-    let api_key_env = env::var("ORANGENSAFT_API_KEY_ENV")
-        .unwrap_or_else(|_| "OPENROUTER_API_KEY".to_string());
+    let api_key_env =
+        env::var("ORANGENSAFT_API_KEY_ENV").unwrap_or_else(|_| "OPENROUTER_API_KEY".to_string());
     let model = env::var("ORANGENSAFT_MODEL").ok();
     let temperature = match env::var("ORANGENSAFT_TEMPERATURE") {
         Ok(raw) => Some(parse_f32_option("ORANGENSAFT_TEMPERATURE", &raw)?),
@@ -206,14 +262,20 @@ fn run_defaults() -> Result<RunDefaults, String> {
 
 fn execute(command: Command) -> Result<(), String> {
     match command {
-        Command::Check { file } => {
+        Command::Check { file, autofmt } => {
             let source = read_file(&file)?;
-            match crate::check_source(&source) {
+            let source_to_check = if autofmt {
+                crate::format_source(&source).map_err(|err| render_error(err, &file, &source))?
+            } else {
+                source.clone()
+            };
+
+            match crate::check_source(&source_to_check) {
                 Ok(_) => {
                     println!("OK: {file}");
                     Ok(())
                 }
-                Err(err) => Err(render_error(err, &file, &source)),
+                Err(err) => Err(render_error(err, &file, &source_to_check)),
             }
         }
         Command::Run {
@@ -224,8 +286,14 @@ fn execute(command: Command) -> Result<(), String> {
             temperature,
             max_tool_rounds,
             max_tool_calls,
+            autofmt,
         } => {
             let source = read_file(&file)?;
+            let source_to_run = if autofmt {
+                crate::format_source(&source).map_err(|err| render_error(err, &file, &source))?
+            } else {
+                source.clone()
+            };
             let provider: Box<dyn PromptProvider> = match provider {
                 ProviderKind::Mock => Box::new(HeuristicMockProvider::new()),
                 ProviderKind::OpenRouter => {
@@ -241,9 +309,29 @@ fn execute(command: Command) -> Result<(), String> {
                 max_tool_calls,
             };
 
-            match crate::run_source_with_provider_and_options(&source, provider, options) {
+            match crate::run_source_with_provider_and_options(&source_to_run, provider, options) {
                 Ok(_) => Ok(()),
-                Err(err) => Err(render_error(err, &file, &source)),
+                Err(err) => Err(render_error(err, &file, &source_to_run)),
+            }
+        }
+        Command::Fmt { file, write, check } => {
+            let source = read_file(&file)?;
+            let formatted =
+                crate::format_source(&source).map_err(|err| render_error(err, &file, &source))?;
+
+            if check {
+                if source == formatted {
+                    println!("OK: {file}");
+                    Ok(())
+                } else {
+                    Err(format!("not formatted: {file}"))
+                }
+            } else if write {
+                fs::write(&file, formatted)
+                    .map_err(|err| format!("failed to write '{file}': {err}"))
+            } else {
+                print!("{formatted}");
+                Ok(())
             }
         }
     }
@@ -259,7 +347,7 @@ fn render_error(err: SaftError, file: &str, source: &str) -> String {
 
 fn usage(bin_name: &str) -> String {
     format!(
-        "Usage:\n  {bin_name} check <file.saft>\n  {bin_name} run <file.saft> [options]\n  {bin_name} <file.saft> [options]\n\nOptions:\n  --provider mock|openrouter|none\n  --api-key-env ENV\n  --model NAME\n  --temperature N\n  --max-tool-rounds N\n  --max-tool-calls N\n\nDefault values can be set once with env vars:\n  ORANGENSAFT_PROVIDER=mock|openrouter|none\n  ORANGENSAFT_API_KEY_ENV=OPENROUTER_API_KEY\n  ORANGENSAFT_MODEL=openai/gpt-4o-mini\n  ORANGENSAFT_TEMPERATURE=0\n  ORANGENSAFT_MAX_TOOL_ROUNDS=8\n  ORANGENSAFT_MAX_TOOL_CALLS=32"
+        "Usage:\n  {bin_name} check <file.saft> [--autofmt]\n  {bin_name} run <file.saft> [options]\n  {bin_name} fmt <file.saft> [--write|--check]\n  {bin_name} <file.saft> [options]\n\nOptions (run/check):\n  --provider mock|openrouter|none\n  --api-key-env ENV\n  --model NAME\n  --temperature N\n  --max-tool-rounds N\n  --max-tool-calls N\n  --autofmt\n\nOptions (fmt):\n  --write   write formatted output back to file\n  --check   fail if file is not already formatted\n\nDefault values can be set once with env vars:\n  ORANGENSAFT_PROVIDER=mock|openrouter|none\n  ORANGENSAFT_API_KEY_ENV=OPENROUTER_API_KEY\n  ORANGENSAFT_MODEL=openai/gpt-4o-mini\n  ORANGENSAFT_TEMPERATURE=0\n  ORANGENSAFT_MAX_TOOL_ROUNDS=8\n  ORANGENSAFT_MAX_TOOL_CALLS=32"
     )
 }
 
@@ -289,9 +377,15 @@ mod tests {
 
         let command = parse_args(&args).expect("expected run command to parse");
         match command {
-            Command::Run { file, provider, .. } => {
+            Command::Run {
+                file,
+                provider,
+                autofmt,
+                ..
+            } => {
                 assert_eq!(file, "examples/11_simple_array_op_2.saft");
                 assert_eq!(provider, ProviderKind::None);
+                assert!(!autofmt);
             }
             other => panic!("expected run command, got {other:?}"),
         }
@@ -308,11 +402,72 @@ mod tests {
 
         let command = parse_args(&args).expect("expected shorthand command to parse");
         match command {
-            Command::Run { file, provider, .. } => {
+            Command::Run {
+                file,
+                provider,
+                autofmt,
+                ..
+            } => {
                 assert_eq!(file, "examples/11_simple_array_op_2.saft");
                 assert_eq!(provider, ProviderKind::None);
+                assert!(!autofmt);
             }
             other => panic!("expected run command, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_fmt_subcommand() {
+        let args = vec![
+            "orangensaft".to_string(),
+            "fmt".to_string(),
+            "examples/11_simple_array_op_2.saft".to_string(),
+            "--check".to_string(),
+        ];
+
+        let command = parse_args(&args).expect("expected fmt command to parse");
+        match command {
+            Command::Fmt { file, check, write } => {
+                assert_eq!(file, "examples/11_simple_array_op_2.saft");
+                assert!(check);
+                assert!(!write);
+            }
+            other => panic!("expected fmt command, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_autofmt_flag_for_run() {
+        let args = vec![
+            "orangensaft".to_string(),
+            "run".to_string(),
+            "examples/11_simple_array_op_2.saft".to_string(),
+            "--autofmt".to_string(),
+        ];
+
+        let command = parse_args(&args).expect("expected run command to parse");
+        match command {
+            Command::Run { autofmt, .. } => assert!(autofmt),
+            other => panic!("expected run command, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_autofmt_flag_for_check() {
+        let args = vec![
+            "orangensaft".to_string(),
+            "check".to_string(),
+            "examples/11_simple_array_op_2.saft".to_string(),
+            "--autofmt".to_string(),
+        ];
+
+        let command = parse_args(&args).expect("expected check command to parse");
+        match command {
+            Command::Check { file, autofmt } => {
+                assert_eq!(file, "examples/11_simple_array_op_2.saft");
+                assert!(autofmt);
+            }
+            other => panic!("expected check command, got {other:?}"),
         }
     }
 }
