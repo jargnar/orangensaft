@@ -8,7 +8,9 @@ This is like a mini python, where prompts are deeply part of the language. You c
 
 This is a valid code:
 
-```
+```py
+// example.saft
+
 people = ["alice", "bob", "charlie", "mr. karabalabaloofal"]
 
 z: string = $
