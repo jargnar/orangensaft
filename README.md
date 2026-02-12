@@ -19,7 +19,7 @@ $
 
 // guess what happened above?
 // when you enclosed something in $ .. $ and assign it to a var
-// the language run time actually evaluates it by calling an LLM
+// the language runtime actually evaluates it by calling an LLM
 // and stores response in the assigned variable
 
 // so the below will actually mostly be true
