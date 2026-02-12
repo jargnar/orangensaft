@@ -4,9 +4,7 @@ Orangensaft is a new age, post AI programming language.
 
 This is a hobby project.
 
-This is like a mini python, where prompts are deeply part of the language. You can fully intermix deterministic scripting with probabilistic LLM calls.
-
-LLM calls are a deep part of the language runtime.
+This is like a mini python, where prompts are deeply part of the language. You can fully intermix deterministic scripting with probabilistic LLM calls. LLM calls are a deep part of the language runtime.
 
 This is a valid code:
 
