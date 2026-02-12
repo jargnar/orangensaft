@@ -4,4 +4,13 @@ z: string = $
     who has the longest name in {people}
 $
 
+// guess what happened above?
+// when you enclosed something in $ .. $ and assign it to a var
+// the language runtime actually evaluates it by calling an LLM
+// and stores response in the assigned variable
+
+// so the below will actually mostly be true
+// (unless you're calling like a stupid model)
+
 assert z == people[3]
+print(z) // prints what you think it will

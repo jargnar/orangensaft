@@ -311,7 +311,18 @@ Notes:
 - `+` allowed for numeric add and string concat only
 - Truthiness: `false` and `nil` are falsey; everything else truthy
 
-## 7. CLI Contract for Milestone 1
+## 7. v0 Standard Library (Implemented)
+
+Current builtins:
+
+- `upper(string) -> string`
+- `print(any) -> nil` (prints to stdout)
+- `len(string|list|tuple|object) -> int`
+- `type(any) -> string`
+
+Builtins are normal function values at runtime, so they can be called directly and can be interpolated in prompts as tools.
+
+## 8. CLI Contract for Milestone 1
 
 Keep secrets out of compile artifacts:
 
@@ -321,7 +332,7 @@ Keep secrets out of compile artifacts:
 
 If you still want compile-time key injection, treat it as a temporary dev flag only.
 
-## 8. Suggested Parser/Checker Phases
+## 9. Suggested Parser/Checker Phases
 
 1. Lex (`NEWLINE/INDENT/DEDENT`, prompt mode, comments)
 2. Parse to AST
@@ -332,7 +343,7 @@ If you still want compile-time key injection, treat it as a temporary dev flag o
    - assignment annotation syntax validity
 5. Interpret runtime
 
-## 9. Example of True Function Calling
+## 10. Example of True Function Calling
 
 ```saft
 verbs = ["build", "test", "ship"]

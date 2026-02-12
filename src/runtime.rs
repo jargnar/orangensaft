@@ -14,9 +14,8 @@ use crate::provider::{
     ToolResult,
 };
 use crate::schema;
+use crate::stdlib;
 use crate::value::{FunctionId, Value};
-
-pub const BUILTIN_NAMES: &[&str] = &["upper"];
 
 type EnvRef = Rc<RefCell<Env>>;
 type BuiltinFn = fn(Vec<Value>) -> SaftResult<Value>;
@@ -124,7 +123,9 @@ impl Runtime {
     }
 
     fn install_builtins(&mut self) {
-        self.register_builtin("upper", 1, builtin_upper);
+        for builtin in stdlib::BUILTINS {
+            self.register_builtin(builtin.name, builtin.arity, builtin.func);
+        }
     }
 
     fn register_builtin(&mut self, name: &'static str, arity: usize, func: BuiltinFn) {
@@ -1238,21 +1239,6 @@ impl Runtime {
             current = scope.borrow().parent.clone();
         }
         None
-    }
-}
-
-fn builtin_upper(args: Vec<Value>) -> SaftResult<Value> {
-    let arg = args
-        .into_iter()
-        .next()
-        .ok_or_else(|| SaftError::new("upper expects one argument"))?;
-
-    match arg {
-        Value::String(value) => Ok(Value::String(value.to_uppercase())),
-        other => Err(SaftError::new(format!(
-            "upper expects string, got {}",
-            other.type_name()
-        ))),
     }
 }
 

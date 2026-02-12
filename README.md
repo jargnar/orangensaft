@@ -26,9 +26,10 @@ $
 // (unless you're calling like a stupid model)
 
 assert z == people[3]
+print(z) // prints what you think it will
 ```
 
-To run a `saft` program, for now clone the repo and run it like this
+To run a `saft` program, clone the repo and run it like this:
 
 ```sh
 % cargo run -- run examples/11_simple_array_op_2.saft \
@@ -38,6 +39,35 @@ To run a `saft` program, for now clone the repo and run it like this
   --temperature 0 \
   --max-tool-rounds 8 \
   --max-tool-calls 32
+```
+
+You can also use shorthand (no `run` subcommand):
+
+```sh
+% cargo run -- examples/11_simple_array_op_2.saft --provider openrouter
+```
+
+If you want plain `orangensaft ...` commands:
+
+```sh
+% cargo install --path .
+```
+
+Then set defaults once in your shell profile:
+
+```sh
+export ORANGENSAFT_PROVIDER=openrouter
+export ORANGENSAFT_API_KEY_ENV=OPENROUTER_API_KEY
+export ORANGENSAFT_MODEL=openai/gpt-4o-mini
+export ORANGENSAFT_TEMPERATURE=0
+export ORANGENSAFT_MAX_TOOL_ROUNDS=8
+export ORANGENSAFT_MAX_TOOL_CALLS=32
+```
+
+After that, this works:
+
+```sh
+% orangensaft examples/11_simple_array_op_2.saft
 ```
 
 A few more quick examples below.
@@ -73,3 +103,20 @@ assert z == "bob says hi to alice"
 
 
 See all other examples in the examples folder.
+
+## Tiny Stdlib
+
+Current builtin functions:
+
+- `upper(string) -> string`
+- `print(any) -> nil`
+- `len(string|list|tuple|object) -> int`
+- `type(any) -> string`
+
+For a compact stdlib demo, see `examples/12_stdlib_basics.saft`.
+
+## AI Agent Entrypoint
+
+For AI-assisted maintenance and development in this repo:
+
+- `AGENTS.md` is the canonical, complete agent guide.

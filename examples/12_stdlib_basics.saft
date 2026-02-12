@@ -1,0 +1,13 @@
+shout = upper("orangensaft")
+assert shout == "ORANGENSAFT"
+
+assert len("ship") == 4
+assert len([1, 2, 3]) == 3
+assert len((1, "x")) == 2
+assert len({a: 1, b: 2}) == 2
+
+assert type(shout) == "string"
+assert type(nil) == "nil"
+
+printed = print("stdlib ok")
+assert printed == nil

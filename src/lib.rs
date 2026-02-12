@@ -7,6 +7,7 @@ pub mod provider;
 pub mod resolver;
 pub mod runtime;
 pub mod schema;
+pub mod stdlib;
 pub mod token;
 pub mod value;
 
@@ -16,7 +17,7 @@ use error::SaftResult;
 pub fn check_source(source: &str) -> SaftResult<Program> {
     let tokens = lexer::lex(source)?;
     let program = parser::parse(tokens)?;
-    resolver::resolve(&program, runtime::BUILTIN_NAMES)?;
+    resolver::resolve(&program, stdlib::BUILTIN_NAMES)?;
     Ok(program)
 }
 
