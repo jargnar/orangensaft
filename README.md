@@ -1,8 +1,6 @@
 # 🍊Orangensaft
 
-Orangensaft is an experimantal, new age, post-AI programming language.
-
-📣 This is a hobby project. It's a toy language. I'm just starting to explore this. Do not use it. It's only for me.
+Orangensaft is an experimantal, new age, post-AI programming language. _This is a hobby project. It's a toy language. I'm just starting this thing. Do not use it. It's only for me._
 
 Ok. This is like a mini python where prompts are deeply part of the language. You can fully intermix deterministic scripting with probabilistic LLM calls. LLM calls are a deep part of the language runtime.
 
