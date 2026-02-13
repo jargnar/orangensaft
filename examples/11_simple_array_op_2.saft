@@ -1,16 +1,9 @@
 people = ["alice", "bob", "charlie", "mr. karabalabaloofal"]
 
-z: string = $
-    who has the longest name in {people}
-$
+// $..$ evals at runtime by calling an LLM and assings result to the var
+// the type annotation actually is ensured by the language runtime
 
-// guess what happened above?
-// when you enclosed something in $ .. $ and assign it to a var
-// the language runtime actually evaluates it by calling an LLM
-// and stores response in the assigned variable
+longest_name: string = $who has the longest name in {people}$
 
-// so the below will actually mostly be true
-// (unless you're calling like a stupid model)
-
-assert z == people[3]
-print(z) // prints what you think it will
+assert longest_name == people[3] // yup true
+print(longest_name)

@@ -1,10 +1,10 @@
 # 🍊Orangensaft
 
-Orangensaft is a new age, post AI programming language.
+Orangensaft is an experimantal, new age, post-AI programming language.
 
-This is a hobby project.
+📣 This is a hobby project. It's a toy language. I'm just starting to explore this. Do not use it. It's only for me.
 
-This is like a mini python, where prompts are deeply part of the language. You can fully intermix deterministic scripting with probabilistic LLM calls. LLM calls are a deep part of the language runtime.
+Ok. This is like a mini python where prompts are deeply part of the language. You can fully intermix deterministic scripting with probabilistic LLM calls. LLM calls are a deep part of the language runtime.
 
 This is a valid code:
 
@@ -13,21 +13,35 @@ This is a valid code:
 
 people = ["alice", "bob", "charlie", "mr. karabalabaloofal"]
 
-z: string = $
-    who has the longest name in {people}
+longest_name: string = $
+  who has the longest name in {people}
 $
 
-// guess what happened above?
-// when you enclosed something in $ .. $ and assign it to a var
-// the language runtime actually evaluates it by calling an LLM
-// and stores response in the assigned variable
-
-// so the below will actually mostly be true
-// (unless you're calling like a stupid model)
-
-assert z == people[3]
-print(z) // prints what you think it will
+assert longest_name == people[3] // yup true
 ```
+
+When anything is enclosed between `$ .. $`, then the language runtime:
+
+- calls an LLM
+- enforces the declared type
+- stores the result into the specified variable
+
+Below is the same code, but written normally and deterministically:
+
+```
+// old.saft
+
+people = ["alice", "bob", "charlie", "mr. karabalabaloofal"]
+
+longest_name = people[0]
+for p in people:
+  if len(p) > len(longest_name):
+    longest_name = p
+
+print(longest_name)
+```
+
+You can choose what level of probabilistic or deterministic code you write. WCGW?.
 
 To run a `saft` program, clone the repo and run it like this:
 
@@ -40,6 +54,83 @@ To run a `saft` program, clone the repo and run it like this:
   --max-tool-rounds 8 \
   --max-tool-calls 32
 ```
+
+### A few more examples
+
+```
+verbs = ["build", "test", "ship"]
+
+upper: [string] = $
+    convert each item in {verbs} to uppercase
+$
+
+assert upper[0] == "BUILD"
+assert upper[1] == "TEST"
+assert upper[2] == "SHIP"
+```
+
+or even sth like this
+
+```
+people = ["alice", "bob", "charlie"]
+
+f greet(x, y):
+    ret x + " says hi to " + y
+
+z: string = $
+    hey it seems among {people}, bob
+    wants to talk to alice
+    can you {greet} them
+$
+
+assert z == "bob says hi to alice"
+```
+
+This is true func calling at runtime.
+
+You can also load CSVs with Polars-backed dataframes:
+
+```saft
+df = read("examples/data/team_stats.csv")
+
+winner = $
+    which column from {df} has highest average
+$
+```
+
+When a dataframe is interpolated in a prompt (`{df}`), runtime injects a structured JSON context block instead of raw full-table dumps. That block includes:
+
+- `shape` (`rows`, `columns`)
+- column names + dtypes
+- `sample_rows` (bounded sample)
+- `numeric_profile` (`mean`, `min`, `max` per numeric column, bounded)
+- truncation metadata so models know context was summarized
+
+This keeps prompts token-efficient while still giving the model enough tabular signal for questions like "highest average column". For exact numeric answers, deterministic stdlib functions (`mean`, `sum`, etc.) are still available.
+
+
+See all other examples in the examples folder.
+
+## Tiny stdlib
+
+Current builtin functions:
+
+- `upper(string) -> string`
+- `print(any) -> nil`
+- `len(string|list|tuple|object|dataframe) -> int`
+- `type(any) -> string`
+- `read(path: string) -> dataframe` (CSV)
+- `shape(df: dataframe) -> (int, int)` (`rows, columns`)
+- `columns(df: dataframe) -> [string]`
+- `head(df: dataframe) -> [object]` (first 5 rows)
+- `select(df: dataframe, cols: [string]) -> dataframe`
+- `mean(df: dataframe, column: string) -> float`
+- `sum(df: dataframe, column: string) -> float`
+- `min(df: dataframe, column: string) -> float`
+- `max(df: dataframe, column: string) -> float`
+
+
+## Build notes
 
 You can also use shorthand (no `run` subcommand):
 
@@ -86,80 +177,7 @@ After that, this works:
 % orangensaft examples/11_simple_array_op_2.saft
 ```
 
-A few more quick examples below.
-
-```
-verbs = ["build", "test", "ship"]
-
-upper: [string] = $
-    convert each item in {verbs} to uppercase
-$
-
-assert upper[0] == "BUILD"
-assert upper[1] == "TEST"
-assert upper[2] == "SHIP"
-```
-
-or even sth like this
-
-```
-people = ["alice", "bob", "charlie"]
-
-f greet(x, y):
-    ret x + " says hi to " + y
-
-z: string = $
-    hey it seems among {people}, bob
-    wants to talk to alice
-    can you {greet} them
-$
-
-assert z == "bob says hi to alice"
-```
-
-You can also load CSVs with Polars-backed dataframes:
-
-```saft
-df = read("examples/data/team_stats.csv")
-
-winner = $
-    which column from {df} has highest average
-$
-```
-
-When a dataframe is interpolated in a prompt (`{df}`), runtime injects a structured JSON context block instead of raw full-table dumps. That block includes:
-
-- `shape` (`rows`, `columns`)
-- column names + dtypes
-- `sample_rows` (bounded sample)
-- `numeric_profile` (`mean`, `min`, `max` per numeric column, bounded)
-- truncation metadata so models know context was summarized
-
-This keeps prompts token-efficient while still giving the model enough tabular signal for questions like "highest average column". For exact numeric answers, deterministic stdlib functions (`mean`, `sum`, etc.) are still available.
-
-
-See all other examples in the examples folder.
-
-## Tiny Stdlib
-
-Current builtin functions:
-
-- `upper(string) -> string`
-- `print(any) -> nil`
-- `len(string|list|tuple|object|dataframe) -> int`
-- `type(any) -> string`
-- `read(path: string) -> dataframe` (CSV)
-- `shape(df: dataframe) -> (int, int)` (`rows, columns`)
-- `columns(df: dataframe) -> [string]`
-- `head(df: dataframe) -> [object]` (first 5 rows)
-- `select(df: dataframe, cols: [string]) -> dataframe`
-- `mean(df: dataframe, column: string) -> float`
-- `sum(df: dataframe, column: string) -> float`
-- `min(df: dataframe, column: string) -> float`
-- `max(df: dataframe, column: string) -> float`
-
-
-## AI Agent Entrypoint
+## AI Agent entrypoint
 
 For AI-assisted maintenance and development in this repo:
 
