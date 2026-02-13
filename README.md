@@ -117,6 +117,26 @@ $
 assert z == "bob says hi to alice"
 ```
 
+You can also load CSVs with Polars-backed dataframes:
+
+```saft
+df = read("examples/data/team_stats.csv")
+
+winner = $
+    which column from {df} has highest average
+$
+```
+
+When a dataframe is interpolated in a prompt (`{df}`), runtime injects a structured JSON context block instead of raw full-table dumps. That block includes:
+
+- `shape` (`rows`, `columns`)
+- column names + dtypes
+- `sample_rows` (bounded sample)
+- `numeric_profile` (`mean`, `min`, `max` per numeric column, bounded)
+- truncation metadata so models know context was summarized
+
+This keeps prompts token-efficient while still giving the model enough tabular signal for questions like "highest average column". For exact numeric answers, deterministic stdlib functions (`mean`, `sum`, etc.) are still available.
+
 
 See all other examples in the examples folder.
 
@@ -138,32 +158,6 @@ Current builtin functions:
 - `min(df: dataframe, column: string) -> float`
 - `max(df: dataframe, column: string) -> float`
 
-For a compact stdlib demo, see `examples/12_stdlib_basics.saft`.
-
-For dataframe + prompt context behavior, see `examples/13_polars_prompt_context.saft`.
-For a deeper agentic dataframe analysis flow, see `examples/14_polars_agentic_scouting_report.saft`.
-
-## DataFrames + Prompt Context
-
-You can now load CSVs with Polars-backed dataframes:
-
-```saft
-df = read("examples/data/team_stats.csv")
-
-winner = $
-    which column from {df} has highest average
-$
-```
-
-When a dataframe is interpolated in a prompt (`{df}`), runtime injects a structured JSON context block instead of raw full-table dumps. That block includes:
-
-- `shape` (`rows`, `columns`)
-- column names + dtypes
-- `sample_rows` (bounded sample)
-- `numeric_profile` (`mean`, `min`, `max` per numeric column, bounded)
-- truncation metadata so models know context was summarized
-
-This keeps prompts token-efficient while still giving the model enough tabular signal for questions like "highest average column". For exact numeric answers, deterministic stdlib functions (`mean`, `sum`, etc.) are still available.
 
 ## AI Agent Entrypoint
 
